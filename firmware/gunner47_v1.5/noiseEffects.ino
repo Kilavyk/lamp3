@@ -194,6 +194,7 @@ void fillNoiseLED()
 
       noise[i][j] = data;
     }
+    yield();                                                // не "морим голодом" WiFi-стек во время расчёта шума
   }
   z += speed;
 
@@ -222,7 +223,7 @@ void fillNoiseLED()
       {
         bri = dim8_raw( bri * 2);
       }
-      CRGB color = ColorFromPalette( currentPalette, index, bri);      
+      CRGB color = ColorFromPalette( currentPalette, index, bri);
       drawPixelXY(i, j, color);                             //leds[getPixelNumber(i, j)] = color;
     }
   }
@@ -239,6 +240,7 @@ void fillnoise8()
       int32_t joffset = scale * j;
       noise[i][j] = inoise8(x + ioffset, y + joffset, z);
     }
+    yield();                                                // не "морим голодом" WiFi-стек во время расчёта шума
   }
   z += speed;
 }

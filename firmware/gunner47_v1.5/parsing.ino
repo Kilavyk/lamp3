@@ -1,10 +1,19 @@
 void parseUDP()
 {
-  int32_t packetSize = Udp.parsePacket();
-
-  if (packetSize)
+  // === ОПТИМИЗАЦИЯ: разбираем все накопившиеся UDP-пакеты за один проход loop() ===
+  // Раньше обрабатывался только 1 пакет за проход: при перетаскивании ползунков
+  // (десятки команд в секунду) и при занятости loop эффектом очередь копилась,
+  // ответы запаздывали, и приложение (таймаут ~1.5 с) "теряло" лампу.
+  // Лимит 8 пакетов за проход защищает эффекты от лавины запросов.
+  for (uint8_t pkt = 0; pkt < 8; pkt++)
   {
-    int16_t n = Udp.read(packetBuffer, MAX_UDP_BUFFER_SIZE);
+    int32_t packetSize = Udp.parsePacket();
+    if (!packetSize)
+    {
+      break;
+    }
+
+    int16_t n = Udp.read(packetBuffer, MAX_UDP_BUFFER_SIZE - 1);
     packetBuffer[n] = '\0';
     strcpy(inputBuffer, packetBuffer);
 
@@ -15,7 +24,7 @@ void parseUDP()
 
     if (Udp.remoteIP() == WiFi.localIP())                   // не реагировать на свои же пакеты
     {
-      return;
+      continue;
     }
 
     char reply[MAX_UDP_BUFFER_SIZE];
@@ -24,10 +33,10 @@ void parseUDP()
     #if (USE_MQTT)                                          // отправка ответа выполнения команд по MQTT, если разрешено
     if (espMode == 1U)
     {
-      strcpy(MqttManager::mqttBuffer, reply);               // разрешение определяется при выполнении каждой команды отдельно, команды GET, DEB, DISCOVER и OTA, пришедшие по UDP, игнорируются (приходят раз в 2 секунды от приложения)
+      strcpy(MqttManager::mqttBuffer, reply);               // команды GET, DEB, DISCOVER и OTA по UDP игнорируются (приходят раз в 2 секунды от приложения)
     }
     #endif
-    
+
     Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
     Udp.write(reply);
     Udp.endPacket();
@@ -37,6 +46,8 @@ void parseUDP()
     LOG.println(reply);
     LOG.println();
     #endif
+
+    yield();                                                // отдаём управление WiFi-стеку между пакетами
   }
 }
 
